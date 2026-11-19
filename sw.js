@@ -1,5 +1,5 @@
 // Incrémenter VERSION à chaque modification d'un fichier de SHELL : c'est ce qui force la mise à jour chez l'utilisateur.
-const VERSION = 'v16';
+const VERSION = 'v17';
 const CACHE = `collections-${VERSION}`;
 const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.170.0/';
 // Cache à part, gardé d'une version de l'appli à l'autre : Three.js ne change qu'avec THREE_URL.

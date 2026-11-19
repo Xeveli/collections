@@ -19,7 +19,9 @@ const el = (tag, props = {}, ...children) => {
 const VIEW_KEY = 'collections:view';
 let savedView = null;
 try { savedView = localStorage.getItem(VIEW_KEY); } catch { /* préférence non critique */ }
-const state = { categoryId: 'tout', shelf: '', genre: '', status: '', view: savedView === 'rayons' ? 'rayons' : 'liste', categories: [], items: [] };
+// Vue Rayons en cours de mise au point : visible en local (PC ou iPhone sur le réseau local), masquée sur le site publié.
+const SHOW_3D = !location.hostname.endsWith('github.io');
+const state = { categoryId: 'tout', shelf: '', genre: '', status: '', view: SHOW_3D && savedView === 'rayons' ? 'rayons' : 'liste', categories: [], items: [] };
 
 async function load() {
   state.categories = byOrder(await getAll('categories'));
@@ -286,6 +288,7 @@ function renderList() {
   $('count').textContent = `${list.length} objet${list.length > 1 ? 's' : ''}`;
   const rayons = state.view === 'rayons';
   $('view-toggle').textContent = rayons ? 'Liste' : 'Rayons';
+  $('view-toggle').hidden = !SHOW_3D;
   $('items').hidden = rayons;
   if (rayons) $('no-match').hidden = true;
   $('shelves3d').hidden = !rayons || alive.length === 0;
