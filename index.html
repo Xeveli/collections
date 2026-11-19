@@ -19,9 +19,24 @@
 </head>
 <body>
   <header class="top">
-    <h1>Collections</h1>
+    <div class="title-row">
+      <h1>Collections</h1>
+      <button type="button" class="ghost" id="open-backup">Sauvegarde</button>
+    </div>
     <nav class="cats" id="cats" aria-label="Catégories"></nav>
   </header>
+  <dialog id="backup" aria-labelledby="backup-title">
+    <form method="dialog" class="dialog-close"><button aria-label="Fermer">✕</button></form>
+    <h2 id="backup-title">Sauvegarde</h2>
+    <p class="muted">Ta collection vit dans ce navigateur. Exporte-la sur iCloud Drive pour la sauvegarder et l'importer sur ton autre appareil.</p>
+    <button type="button" class="primary" id="export">Exporter la collection</button>
+    <label class="file-button">
+      Importer un fichier…
+      <input type="file" id="import" accept="application/json,.json">
+    </label>
+    <p class="muted small" id="last-export"></p>
+    <p class="small" id="backup-status" role="status"></p>
+  </dialog>
   <main id="main">
     <section class="empty">
       <div class="shelf" aria-hidden="true"><span></span><span></span><span></span><span></span></div>

@@ -37,6 +37,16 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 - L'IndexedDB d'une PWA installée sur iPhone est séparée de celle de Safari. Les données peuvent aussi être perdues (désinstallation, effacement des données du site) : l'export JSON est la seule sauvegarde.
 - Import JSON : il fusionne par `id` d'objet, et la date `updatedAt` la plus récente l'emporte. Il ne doit jamais écraser toute la base sans confirmation.
 
+## Architecture des données
+
+- `db.js` : seul accès à IndexedDB (base `collections`, magasins `categories` et `items`, clé `id`). `putMany` écrit plusieurs magasins en une transaction.
+- `sync.js` : logique pure de l'export/import (validation du fichier, fusion). Elle n'utilise aucune API du navigateur, ce qui permet de la tester sous Node. Toute nouvelle logique de données qui peut s'en passer va là ou dans un module pur du même genre.
+- Chaque fiche a un `id` texte et un `updatedAt` en millisecondes. **Toute modification met `updatedAt` à `Date.now()`**, sinon la fusion l'ignore.
+- **Supprimer = marquer la fiche `deleted: true`** (avec un nouveau `updatedAt`), ne jamais l'effacer de la base. Sinon, l'import depuis l'autre appareil la ferait réapparaître. L'affichage filtre les fiches supprimées.
+- Les catégories par défaut ont des `id` fixes (`livres`, `films`…) et `updatedAt: 0`, pour que PC et iPhone ne les dupliquent pas. Une catégorie créée par l'utilisateur prend un `crypto.randomUUID()`.
+- Ajouter un magasin : l'ajouter à `STORES` dans `sync.js` et incrémenter `DB_VERSION` dans `db.js`.
+- Export : la feuille de partage sur écran tactile (« Enregistrer dans Fichiers »), sinon un téléchargement. Le nom suit le motif `collections-AAAA-MM-JJ.json`, que le `.gitignore` exclut.
+
 ## Service worker
 
 `sw.js` sert d'abord les fichiers du cache (liste `SHELL`). **Toute modification d'un fichier de l'appli impose d'incrémenter `VERSION` dans `sw.js`**, sinon les appareils déjà installés gardent l'ancienne version. Un nouveau fichier de l'appli s'ajoute aussi à `SHELL`. Les requêtes vers d'autres domaines (API) ne passent pas par le cache.
@@ -44,4 +54,4 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 ## Commandes
 
 - Servir en local : `python -m http.server 8000`, puis ouvrir http://localhost:8000. Le service worker et la caméra exigent `localhost` ou HTTPS. Pour tester sur iPhone, passer par GitHub Pages.
-- Tests de la logique pure (fusion d'import, parsing des réponses d'API) : `node --test`. Pour un seul fichier : `node --test tests/<fichier>.test.js`.
+- Tests de la logique pure (fusion d'import, parsing des réponses d'API) : `node --test`. Pour un seul fichier : `node --test tests/<fichier>.test.js`. Pas de `package.json` : Node détecte seul les modules ES.
