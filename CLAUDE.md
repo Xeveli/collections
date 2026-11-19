@@ -25,6 +25,12 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 - Indicateur physique/numérique, choisi à l'ajout.
 - Livre numérique : un simple lien vers le fichier EPUB/PDF sur iCloud. L'appli ne stocke aucun fichier.
 - Genres modifiables à la main, filtres par catégorie et par genre, vue liste.
+- Gestion des catégories (renommer, réordonner, supprimer) et des étagères (ajouter, renommer, retirer). Un même nom à deux niveaux (catégorie « Vinyle » et étagère « Vinyle » de Musique) est permis, mais l'appli prévient d'abord (`categoryClash` / `shelfClash`). Cet avertissement compare sans accents ni pluriel (`loose`) ; le refus des doublons reste strict.
+
+## Plus tard (demandé, hors version 1)
+
+- **Déplacement groupé** : déplacer d'un coup les objets d'une étagère, ou une sélection, vers une autre catégorie ou étagère. C'est utile quand une étagère devient une catégorie à part (« Vinyle » de Musique → catégorie « Vinyle »). Aujourd'hui, il faut modifier chaque fiche une par une.
+- Rayons en 3D avec Three.js.
 
 ## Contraintes à respecter
 

@@ -2,7 +2,8 @@ import { getAll, putMany, seedDefaults } from './db.js';
 import { buildExport, parseImport, planMerge, STORES } from './sync.js';
 import { FORMATS, buildItem, filterItems, listGenres, newId, parseList, safeLink } from './items.js';
 import {
-  addShelf, byOrder, checkCategoryName, deleteCategory, moveCategory, removeShelf, renameCategory, renameShelf,
+  addShelf, byOrder, categoryClash, checkCategoryName, cleanName, deleteCategory, moveCategory, removeShelf,
+  renameCategory, renameShelf, shelfClash,
 } from './categories.js';
 
 const $ = (id) => document.getElementById(id);
@@ -108,9 +109,33 @@ const count = (categoryId, shelf) => state.items
   .filter((i) => !i.deleted && i.categoryId === categoryId && (shelf === undefined || i.shelf === shelf)).length;
 const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
 
-function addCategory() {
-  const raw = prompt('Nom de la nouvelle catégorie :');
+// Remplace prompt(), qui lève une erreur dans certains navigateurs intégrés (dont celui de l'appli Claude).
+// Une seule question en attente à la fois : l'événement « close » peut arriver en retard, et des réponses
+// en attente s'appliqueraient alors toutes avec la dernière saisie. On répond donc dès « submit ».
+let settle = null;
+function ask(label, value = '') {
+  settle?.(null);
+  $('ask-label').textContent = label;
+  $('ask-input').value = value;
+  $('ask-dialog').showModal();
+  $('ask-input').select();
+  return new Promise((resolve) => {
+    settle = (answer) => { settle = null; resolve(answer); };
+  });
+}
+$('ask-form').addEventListener('submit', () => settle?.($('ask-input').value)); // method="dialog" ferme la fenêtre
+$('ask-cancel').addEventListener('click', () => { settle?.(null); $('ask-dialog').close(); });
+// Échap : « cancel » part tout de suite, alors qu'un « close » en retard annulerait la question suivante.
+$('ask-dialog').addEventListener('cancel', () => settle?.(null));
+
+// Avertissement non bloquant (categoryClash / shelfClash) : renvoie false si l'utilisateur renonce.
+const acceptClash = (message, question) => !message || confirm(`${message}\n\n${question}`);
+const sameName = (a, b) => cleanName(a).toLocaleLowerCase('fr') === cleanName(b).toLocaleLowerCase('fr');
+
+async function addCategory() {
+  const raw = await ask('Nom de la nouvelle catégorie');
   if (raw === null) return;
+  if (!acceptClash(categoryClash(raw, state.categories), 'Créer quand même la catégorie ?')) return;
   apply((now) => {
     const name = checkCategoryName(raw, state.categories);
     const order = Math.max(0, ...state.categories.map((c) => c.order)) + 1;
@@ -118,10 +143,11 @@ function addCategory() {
   });
 }
 
-function editShelf(cat, shelf) {
-  const raw = prompt(`Renommer l'étagère « ${shelf} » (laisse vide pour la supprimer) :`, shelf);
+async function editShelf(cat, shelf) {
+  const raw = await ask(`Renommer l'étagère « ${shelf} » (laisse vide pour la supprimer)`, shelf);
   if (raw === null) return;
   if (raw.trim()) {
+    if (!sameName(raw, shelf) && !acceptClash(shelfClash(raw, state.categories, cat.id), 'Renommer quand même l\'étagère ?')) return;
     apply((now) => renameShelf(cat, state.items, shelf, raw, now));
     return;
   }
@@ -136,7 +162,14 @@ function renderManage() {
   const list = state.categories;
   $('cats-list').replaceChildren(...list.map((cat, idx) => {
     const name = el('input', { value: cat.name, autocomplete: 'off', ariaLabel: `Nom de la catégorie ${cat.name}` });
-    name.addEventListener('change', () => apply((now) => renameCategory(state.categories, cat.id, name.value, now)));
+    name.addEventListener('change', () => {
+      if (!sameName(name.value, cat.name)
+        && !acceptClash(categoryClash(name.value, state.categories, cat.id), 'Renommer quand même la catégorie ?')) {
+        renderManage(); // remet l'ancien nom
+        return;
+      }
+      apply((now) => renameCategory(state.categories, cat.id, name.value, now));
+    });
 
     const btn = (text, label, onClick, disabled = false) => {
       const b = el('button', { type: 'button', textContent: text, ariaLabel: label, disabled, className: 'icon' });
@@ -160,9 +193,11 @@ function renderManage() {
       return b;
     });
     const addS = el('button', { type: 'button', textContent: '+ Étagère', className: 'add-shelf' });
-    addS.addEventListener('click', () => {
-      const raw = prompt(`Nom de la nouvelle étagère dans ${cat.name} :`);
-      if (raw !== null) apply((now) => addShelf(cat, raw, now));
+    addS.addEventListener('click', async () => {
+      const raw = await ask(`Nom de la nouvelle étagère dans ${cat.name}`);
+      if (raw === null) return;
+      if (!acceptClash(shelfClash(raw, state.categories, cat.id), 'Créer quand même l\'étagère ?')) return;
+      apply((now) => addShelf(cat, raw, now));
     });
 
     return el('li', { className: 'cat-row' },

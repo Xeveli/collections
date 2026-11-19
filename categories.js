@@ -24,6 +24,29 @@ function checkShelfName(raw, category, except) {
   return name;
 }
 
+// Avertissements non bloquants : le même nom à deux niveaux est permis (transition, choix voulu),
+// mais on prévient pour éviter de ranger la même chose à deux endroits.
+// Comparaison tolérante, réservée aux avertissements : sans accents ni s/x final de chaque mot
+// (« Vinyles » ≈ « Vinyle », « Jeux video » ≈ « Jeu vidéo »). Quelques fausses alertes, sans conséquence.
+export const loose = (s) => fold(cleanName(s)).normalize('NFD').replace(/\p{M}/gu, '')
+  .split(' ').map((w) => (w.length > 2 ? w.replace(/[sx]$/, '') : w)).join(' ');
+
+export function categoryClash(raw, categories, exceptId) {
+  const key = loose(raw);
+  const hits = categories
+    .filter((c) => !c.deleted && c.id !== exceptId)
+    .flatMap((c) => (c.shelves ?? []).filter((s) => loose(s) === key).map((s) => ({ cat: c.name, shelf: s })));
+  if (hits.length === 0) return null;
+  if (hits.length === 1) return `${hits[0].cat} a déjà une étagère « ${hits[0].shelf} ».`;
+  return `Ces catégories ont déjà une étagère proche : ${hits.map((h) => `${h.cat} (« ${h.shelf} »)`).join(', ')}.`;
+}
+
+export function shelfClash(raw, categories, categoryId) {
+  const key = loose(raw);
+  const cat = categories.find((c) => !c.deleted && c.id !== categoryId && loose(c.name) === key);
+  return cat ? `Une catégorie « ${cat.name} » existe déjà.` : null;
+}
+
 // Échange une catégorie avec sa voisine (delta -1 ou +1) et renumérote 1..n.
 export function moveCategory(categories, id, delta, now) {
   const list = byOrder(categories);

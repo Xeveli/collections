@@ -93,6 +93,18 @@
     <button type="button" class="primary" id="add-category">+ Nouvelle catégorie</button>
   </dialog>
 
+  <dialog id="ask-dialog" aria-labelledby="ask-label">
+    <form method="dialog" class="ask-form" id="ask-form">
+      <label><span id="ask-label"></span>
+        <input id="ask-input" autocomplete="off">
+      </label>
+      <div class="ask-actions">
+        <button type="button" class="ghost" id="ask-cancel">Annuler</button>
+        <button value="ok" class="primary">Valider</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="backup" aria-labelledby="backup-title">
     <form method="dialog" class="dialog-close"><button aria-label="Fermer">✕</button></form>
     <h2 id="backup-title">Sauvegarde</h2>

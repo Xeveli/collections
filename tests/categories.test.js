@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  addShelf, checkCategoryName, deleteCategory, moveCategory, removeShelf, renameCategory, renameShelf,
+  addShelf, categoryClash, checkCategoryName, loose, shelfClash, deleteCategory, moveCategory, removeShelf, renameCategory, renameShelf,
 } from '../categories.js';
 
 const cats = [
@@ -24,6 +24,32 @@ test('noms de catégorie : vide et doublon refusés, casse ignorée, supprimées
   assert.equal(checkCategoryName('Vieux', cats), 'Vieux');
   assert.equal(renameCategory(cats, 'films', 'FILMS', 9).categories[0].name, 'FILMS');
   assert.deepEqual(renameCategory(cats, 'films', 'Films', 9).categories, []);
+});
+
+test('avertissement quand un nom existe déjà à l\'autre niveau', () => {
+  const withVinyl = [...cats, { id: 'jeux', name: 'Jeux', order: 5, shelves: ['vinyle'], updatedAt: 0 },
+    { id: 'old', name: 'Vieille', order: 6, shelves: ['Vinyle'], deleted: true, updatedAt: 0 }];
+  withVinyl[3] = { ...withVinyl[3], shelves: ['Vinyle'] };
+  assert.equal(categoryClash(' Vinyle ', withVinyl),
+    'Ces catégories ont déjà une étagère proche : Musique (« Vinyle »), Jeux (« vinyle »).');
+  assert.equal(categoryClash('Vinyle', withVinyl, 'jeux'), 'Musique a déjà une étagère « Vinyle ».');
+  assert.equal(categoryClash('Cassettes', withVinyl), null);
+  assert.equal(shelfClash('FILMS', cats, 'livres'), 'Une catégorie « Films » existe déjà.');
+  assert.equal(shelfClash('Films', cats, 'films'), null);
+  assert.equal(shelfClash('Vieux', cats, 'livres'), null); // catégorie supprimée ignorée
+});
+
+test('l\'avertissement ignore pluriel et accents', () => {
+  assert.equal(loose('Vinyles'), loose('vinyle'));
+  assert.equal(loose('Jeux video'), loose('Jeu vidéo'));
+  assert.equal(loose('Bandes dessinées'), loose('bande dessinee'));
+  assert.notEqual(loose('Romans'), loose('Mangas'));
+  const withVinyl = cats.map((c) => (c.id === 'musique' ? { ...c, shelves: ['Vinyle'] } : c));
+  assert.equal(categoryClash('Vinyles', withVinyl), 'Musique a déjà une étagère « Vinyle ».');
+  assert.equal(shelfClash('series', [...cats, { id: 's', name: 'Séries', order: 9, updatedAt: 0 }], 'livres'),
+    'Une catégorie « Séries » existe déjà.');
+  // Le refus des doublons, lui, reste strict : « Jeu » est permis à côté de « Jeux ».
+  assert.equal(checkCategoryName('Film', cats), 'Film');
 });
 
 test('déplacer une catégorie renumérote sans trou ni doublon', () => {

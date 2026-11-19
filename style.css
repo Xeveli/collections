@@ -121,6 +121,12 @@ main {
   margin: 0 auto;
 }
 
+.ask-form { display: grid; gap: 16px; margin: 0; }
+.ask-form label { display: grid; gap: 8px; }
+.ask-form input { width: 100%; }
+.ask-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ask-actions .primary { width: auto; margin: 0; padding: 8px 20px; }
+
 .cats .manage-cats { color: var(--muted); border-style: dashed; }
 
 .cats-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
