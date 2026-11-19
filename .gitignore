@@ -1,3 +1,6 @@
 # Exports de collection : données perso, jamais dans le dépôt public
 *.export.json
 collection*.json
+
+# Exports Goodreads : données perso
+*.csv

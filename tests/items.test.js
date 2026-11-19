@@ -71,3 +71,17 @@ test('filtres par catégorie, étagère et genre ; tri par titre ; fiches suppri
   assert.deepEqual(filterItems(items, { genre: 'SF' }).map((i) => i.id), ['3']);
   assert.deepEqual(listGenres(items.filter((i) => !i.deleted)), ['Aventure', 'SF']);
 });
+
+test('Statut et date de fin : libellé selon la catégorie, date gardée seulement si terminé', async () => {
+  const { buildItem, statusLabel, filterItems } = await import('../items.js');
+  const base = { title: 'X', creators: '', year: '', genres: '', format: 'physique', link: '', categoryId: 'livres' };
+  assert.deepEqual([statusLabel('termine', 'livres'), statusLabel('a-decouvrir', 'films'), statusLabel('termine', 'perso'), statusLabel('a-acquerir', 'jeux')],
+    ['Lu', 'À voir', 'Terminé', 'À acquérir']);
+  const lu = buildItem({ ...base, status: 'termine', finishedAt: '2026-11-19' });
+  assert.deepEqual([lu.status, lu.finishedAt], ['termine', '2026-11-19']);
+  const enCours = buildItem({ ...base, status: 'en-cours', finishedAt: '2026-11-19' });
+  assert.deepEqual([enCours.status, enCours.finishedAt], ['en-cours', undefined]);
+  assert.equal(buildItem({ ...base, status: 'n importe quoi' }).status, undefined);
+  assert.throws(() => buildItem({ ...base, status: 'termine', finishedAt: '19/11/2026' }), /AAAA-MM-JJ/);
+  assert.deepEqual(filterItems([lu, { ...enCours, id: 'b' }], { status: 'termine' }).map((i) => i.id), [lu.id]);
+});

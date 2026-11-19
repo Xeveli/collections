@@ -28,6 +28,7 @@
 
   <main id="main">
     <div class="toolbar" id="toolbar">
+      <select id="filter-status" aria-label="Statut"></select>
       <select id="filter-shelf" aria-label="Étagère"></select>
       <select id="filter-genre" aria-label="Genre"></select>
       <span class="muted small" id="count" aria-live="polite"></span>
@@ -97,6 +98,12 @@
         <input name="genres" id="f-genres" autocomplete="off" placeholder="Séparés par des virgules">
       </label>
       <div class="genre-suggest" id="genre-suggest" aria-label="Genres déjà utilisés"></div>
+      <label>Statut
+        <select name="status" id="f-status"></select>
+      </label>
+      <label id="f-finished-wrap">Date de fin (facultatif)
+        <input name="finishedAt" type="date">
+      </label>
       <fieldset class="segmented">
         <legend>Support</legend>
         <label><input type="radio" name="format" value="physique" checked> Physique</label>
@@ -147,6 +154,10 @@
     <label class="file-button">
       Importer un fichier…
       <input type="file" id="import" accept="application/json,.json">
+    </label>
+    <label class="file-button">
+      Importer depuis Goodreads (CSV)…
+      <input type="file" id="import-goodreads" accept=".csv,text/csv">
     </label>
     <p class="muted small" id="last-export"></p>
     <p class="small" id="backup-status" role="status"></p>

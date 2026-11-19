@@ -1,6 +1,7 @@
 import { getAll, putMany, seedDefaults } from './db.js';
 import { buildExport, parseImport, planMerge, STORES } from './sync.js';
-import { FORMATS, buildItem, filterItems, listGenres, newId, parseList, safeCover, safeLink } from './items.js';
+import { FORMATS, STATUSES, buildItem, filterItems, listGenres, newId, parseList, safeCover, safeLink, statusLabel } from './items.js';
+import { fromGoodreads, parseCsv } from './goodreads.js';
 import {
   addShelf, byOrder, categoryClash, checkCategoryName, cleanName, deleteCategory, moveCategory, removeShelf,
   renameCategory, renameShelf, shelfClash,
@@ -15,7 +16,7 @@ const el = (tag, props = {}, ...children) => {
 };
 
 // Tout le texte saisi ou importé passe par textContent / append : jamais par innerHTML.
-const state = { categoryId: 'tout', shelf: '', genre: '', categories: [], items: [] };
+const state = { categoryId: 'tout', shelf: '', genre: '', status: '', categories: [], items: [] };
 
 async function load() {
   state.categories = byOrder(await getAll('categories'));
@@ -219,6 +220,9 @@ function fillSelect(select, allLabel, values, selected) {
 }
 
 function renderFilters() {
+  $('filter-status').replaceChildren(el('option', { value: '', textContent: 'Tous les statuts' }),
+    ...STATUSES.map((v) => el('option', { value: v, textContent: statusLabel(v, state.categoryId), selected: v === state.status })));
+
   const shelves = catById(state.categoryId)?.shelves ?? [];
   if (!shelves.includes(state.shelf)) state.shelf = '';
   fillSelect($('filter-shelf'), 'Toutes les étagères', shelves, state.shelf);
@@ -257,7 +261,10 @@ function itemRow(item) {
       el('span', { className: 'title', textContent: item.title }),
       meta ? el('span', { className: 'meta', textContent: meta }) : '',
       item.genres?.length ? el('span', { className: 'tags' }, ...item.genres.map((g) => el('span', { textContent: g }))) : ''),
-    el('span', { className: `badge ${item.format}`, textContent: FORMATS[item.format] ?? FORMATS.physique }));
+    el('span', { className: 'badges' },
+      item.status ? el('span', { className: `badge status-${item.status}`, textContent: statusLabel(item.status, item.categoryId) ?? '' }) : '',
+      // « À acquérir » : on ne possède encore aucun support.
+      item.status === 'a-acquerir' ? '' : el('span', { className: `badge ${item.format}`, textContent: FORMATS[item.format] ?? FORMATS.physique })));
   open.addEventListener('click', () => openForm(item));
   const link = item.format === 'numerique' && safeLink(item.link);
   return el('li', {}, open, link ? el('a', { href: link, target: '_blank', rel: 'noopener', className: 'open-file', textContent: 'Ouvrir le fichier' }) : '');
@@ -270,7 +277,7 @@ function renderList() {
   $('empty').hidden = alive.length > 0;
   $('toolbar').hidden = alive.length === 0;
   $('no-match').hidden = alive.length === 0 || list.length > 0;
-  $('no-match').textContent = state.shelf || state.genre
+  $('no-match').textContent = state.shelf || state.genre || state.status
     ? 'Aucun objet ne correspond à ces filtres.'
     : 'Rien dans cette catégorie pour l\'instant.';
   $('count').textContent = `${list.length} objet${list.length > 1 ? 's' : ''}`;
@@ -278,6 +285,7 @@ function renderList() {
 
 $('filter-shelf').addEventListener('change', (e) => { state.shelf = e.target.value; renderFilters(); renderList(); });
 $('filter-genre').addEventListener('change', (e) => { state.genre = e.target.value; renderList(); });
+$('filter-status').addEventListener('change', (e) => { state.status = e.target.value; renderList(); });
 
 /* ---------- Formulaire d'ajout / modification ---------- */
 
@@ -293,6 +301,12 @@ function syncFormVisibility() {
     ...shelves.map((s) => el('option', { value: s, textContent: s, selected: s === current })));
   $('f-shelf-wrap').hidden = shelves.length === 0;
   $('f-link-wrap').hidden = f.format.value !== 'numerique';
+  // Libellés du statut selon la catégorie (Lu, Vu, Joué…), valeur choisie conservée.
+  const status = f.status.value;
+  f.status.replaceChildren(el('option', { value: '', textContent: 'Sans statut' }),
+    ...STATUSES.map((v) => el('option', { value: v, textContent: statusLabel(v, f.categoryId.value) })));
+  f.status.value = status;
+  $('f-finished-wrap').hidden = f.status.value !== 'termine';
 }
 
 // Données venues d'une recherche en ligne, gardées jusqu'à l'enregistrement.
@@ -570,6 +584,9 @@ function openForm(item = null) {
   f.format.value = item?.format ?? 'physique';
   f.link.value = item?.link ?? '';
   syncFormVisibility();
+  f.status.value = item?.status ?? '';
+  f.finishedAt.value = item?.finishedAt ?? '';
+  syncFormVisibility();
   resetSearch();
   renderGenreSuggest();
   dialog.showModal();
@@ -584,7 +601,7 @@ async function saveItem(record) {
 }
 
 f.categoryId.addEventListener('change', syncFormVisibility);
-form.addEventListener('change', (e) => { if (e.target.name === 'format') syncFormVisibility(); });
+form.addEventListener('change', (e) => { if (e.target.name === 'format' || e.target.name === 'status') syncFormVisibility(); });
 f.genres.addEventListener('input', renderGenreSuggest);
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -674,6 +691,22 @@ async function importFile(file) {
   render();
 }
 
+async function importGoodreads(file) {
+  const { items, skipped } = fromGoodreads(parseCsv(await file.text()), await getAll('items'));
+  if (!items.length) {
+    status.textContent = `Rien à importer : les ${skipped} livre(s) du fichier sont déjà dans ta collection.`;
+    return;
+  }
+  const ok = confirm(`Importer ${items.length} livre(s) depuis Goodreads dans Livres ?${skipped ? `
+
+${skipped} livre(s) déjà présent(s) seront ignorés.` : ''}`);
+  if (!ok) { status.textContent = 'Import annulé.'; return; }
+  await putMany({ items });
+  status.textContent = `Import Goodreads terminé : ${items.length} livre(s) ajouté(s)${skipped ? `, ${skipped} déjà présent(s)` : ''}.`;
+  await load();
+  render();
+}
+
 function report(action) {
   return (...args) => action(...args).catch((err) => {
     console.error(err);
@@ -698,6 +731,12 @@ $('import').addEventListener('change', report(async (e) => {
   const file = e.target.files[0];
   e.target.value = ''; // permet de réimporter le même fichier
   if (file) await importFile(file);
+}));
+
+$('import-goodreads').addEventListener('change', report(async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (file) await importGoodreads(file);
 }));
 
 /* ---------- Démarrage ---------- */
