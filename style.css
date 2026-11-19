@@ -57,7 +57,10 @@ body {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 12px;
+  /* Déborde dans la marge du bandeau : les pastilles défilent jusqu'au bord de l'écran */
+  margin: 0 -16px;
+  padding: 0 16px 12px;
+  scroll-padding: 0 16px;
   scrollbar-width: none;
 }
 .cats::-webkit-scrollbar { display: none; }
