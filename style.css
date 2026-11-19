@@ -153,6 +153,9 @@ main {
 }
 .toolbar select { max-width: 48%; }
 .toolbar #count { margin-left: auto; }
+.shelves3d { height: min(70dvh, 640px); border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+.shelves3d canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.shelves-error { padding: 24px; text-align: center; }
 [hidden] { display: none !important; }
 
 .items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }

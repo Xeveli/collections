@@ -16,7 +16,10 @@ const el = (tag, props = {}, ...children) => {
 };
 
 // Tout le texte saisi ou importé passe par textContent / append : jamais par innerHTML.
-const state = { categoryId: 'tout', shelf: '', genre: '', status: '', categories: [], items: [] };
+const VIEW_KEY = 'collections:view';
+let savedView = null;
+try { savedView = localStorage.getItem(VIEW_KEY); } catch { /* préférence non critique */ }
+const state = { categoryId: 'tout', shelf: '', genre: '', status: '', view: savedView === 'rayons' ? 'rayons' : 'liste', categories: [], items: [] };
 
 async function load() {
   state.categories = byOrder(await getAll('categories'));
@@ -281,7 +284,48 @@ function renderList() {
     ? 'Aucun objet ne correspond à ces filtres.'
     : 'Rien dans cette catégorie pour l\'instant.';
   $('count').textContent = `${list.length} objet${list.length > 1 ? 's' : ''}`;
+  const rayons = state.view === 'rayons';
+  $('view-toggle').textContent = rayons ? 'Liste' : 'Rayons';
+  $('items').hidden = rayons;
+  if (rayons) $('no-match').hidden = true;
+  $('shelves3d').hidden = !rayons || alive.length === 0;
+  if (rayons && alive.length) showShelves(list);
 }
+
+/* ---------- Vue Rayons (3D) ---------- */
+
+let shelves = null; // promesse de la scène, créée au premier affichage
+
+// Un rayon par étagère de la catégorie (ou celle filtrée) ; dans « Tout », un rayon par catégorie.
+function shelfGroups() {
+  const cat = catById(state.categoryId);
+  if (!cat) return state.categories.map((c) => c.name);
+  if (state.shelf) return [state.shelf];
+  return cat.shelves?.length ? cat.shelves : [cat.name];
+}
+
+async function showShelves() {
+  const box = $('shelves3d');
+  shelves ??= import('./shelves3d.js').then((m) => {
+    if (!m.hasWebGL()) throw new Error("Cet appareil n'affiche pas la 3D.");
+    return m.createShelves(box);
+  });
+  try {
+    (await shelves).show(shelfGroups());
+  } catch (err) {
+    console.error(err);
+    shelves = null;
+    box.replaceChildren(el('p', { className: 'muted shelves-error', textContent: err.message.startsWith('Cet appareil')
+      ? `${err.message} La liste reste disponible.`
+      : 'Impossible de charger les rayons 3D (connexion requise la première fois).' }));
+  }
+}
+
+$('view-toggle').addEventListener('click', () => {
+  state.view = state.view === 'rayons' ? 'liste' : 'rayons';
+  try { localStorage.setItem(VIEW_KEY, state.view); } catch { /* préférence non critique */ }
+  renderList();
+});
 
 $('filter-shelf').addEventListener('change', (e) => { state.shelf = e.target.value; renderFilters(); renderList(); });
 $('filter-genre').addEventListener('change', (e) => { state.genre = e.target.value; renderList(); });
