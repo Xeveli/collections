@@ -157,7 +157,8 @@
     </label>
     <label class="file-button">
       Importer depuis Goodreads (CSV)…
-      <input type="file" id="import-goodreads" accept=".csv,text/csv">
+      <!-- Sans accept : avec « .csv,text/csv », le sélecteur ne s'ouvrait pas sur iPhone. Le contenu est vérifié à la lecture. -->
+      <input type="file" id="import-goodreads">
     </label>
     <p class="muted small" id="last-export"></p>
     <p class="small" id="backup-status" role="status"></p>
