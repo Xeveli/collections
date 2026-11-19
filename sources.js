@@ -45,6 +45,28 @@ function mbJSON(url) {
   return result;
 }
 
+/* ---------- Codes-barres ---------- */
+
+// ISBN saisi ou scanné → ISBN-13 sans tirets, ou null. Accepte l'ISBN-10 (converti) ; vérifie la clé de contrôle.
+export function normalizeIsbn(text) {
+  const s = String(text ?? '').replace(/[\s-]/g, '').toUpperCase();
+  if (/^97[89]\d{10}$/.test(s)) {
+    const sum = [...s].reduce((acc, d, i) => acc + Number(d) * (i % 2 ? 3 : 1), 0);
+    return sum % 10 === 0 ? s : null;
+  }
+  if (/^\d{9}[\dX]$/.test(s)) {
+    const sum = [...s].reduce((acc, d, i) => acc + (d === 'X' ? 10 : Number(d)) * (10 - i), 0);
+    if (sum % 11 !== 0) return null;
+    const body = `978${s.slice(0, 9)}`;
+    const check = (10 - ([...body].reduce((acc, d, i) => acc + Number(d) * (i % 2 ? 3 : 1), 0) % 10)) % 10;
+    return body + check;
+  }
+  return null;
+}
+
+// Code-barres de disque (EAN-13, UPC-A, EAN-8) : chiffres seulement, zéros de tête ignorés pour comparer.
+const sameBarcode = (a, b) => String(a ?? '').replace(/^0+/, '') === String(b ?? '').replace(/^0+/, '');
+
 /* ---------- Open Library (livres, sans clé) ---------- */
 
 // Les « sujets » d'Open Library sont en vrac : on garde les courts et lisibles, à proposer à l'utilisateur.
@@ -54,10 +76,11 @@ export function pickSubjects(subjects = []) {
 
 // Avec lang=fr, Open Library joint l'édition la plus pertinente : on prend son titre et sa
 // couverture seulement si elle est en français (sinon titre et couverture de l'œuvre).
-export function parseOpenLibrary(json) {
+// Recherche par ISBN (exactEdition) : l'édition jointe est celle du livre scanné, on la prend telle quelle.
+export function parseOpenLibrary(json, { exactEdition = false } = {}) {
   return (json.docs ?? []).map((d) => {
     const ed = d.editions?.docs?.[0];
-    const fr = ed?.language?.includes('fre') ? ed : null;
+    const fr = ed && (exactEdition || ed.language?.includes('fre')) ? ed : null;
     const coverId = fr?.cover_i ?? d.cover_i;
     return {
       source: 'openlibrary',
@@ -143,9 +166,28 @@ export function parseMbSearch(json) {
 
 const duration = (ms) => (Number.isFinite(ms) ? `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}` : undefined);
 
-export function parseMbDetails(groupJson, releasesJson) {
+// Recherche par code-barres : des éditions (releases). On garde celles dont le code correspond exactement
+// (la recherche MusicBrainz est approximative) ; l'édition précise sert ensuite pour la tracklist.
+export function parseMbBarcode(json, code) {
+  const releases = json.releases ?? [];
+  const exact = releases.filter((r) => sameBarcode(r.barcode, code));
+  return (exact.length ? exact : releases).map((r) => ({
+    source: 'musicbrainz',
+    ref: r['release-group']?.id,
+    release: r.id,
+    title: r.title,
+    creators: (r['artist-credit'] ?? []).map((a) => a.name),
+    year: yearOf(r.date),
+    cover: `https://coverartarchive.org/release-group/${r['release-group']?.id}/front-250`,
+    genres: [],
+    kind: r['release-group']?.['primary-type'],
+  })).filter((r) => r.ref);
+}
+
+// releaseJson : une édition (avec media) ou une liste d'éditions (la première sert).
+export function parseMbDetails(groupJson, releaseJson) {
   const genres = [...(groupJson.genres ?? [])].sort((a, b) => (b.count ?? 0) - (a.count ?? 0)).map((g) => g.name);
-  const media = releasesJson.releases?.[0]?.media ?? [];
+  const media = (releaseJson.media ? releaseJson : releaseJson.releases?.[0])?.media ?? [];
   const tracks = media.flatMap((m) => (m.tracks ?? []).map((t) => ({ title: t.title, length: duration(t.length) })));
   return { genres: genres.slice(0, 8), tracks };
 }
@@ -156,9 +198,13 @@ export const SOURCES = {
   openlibrary: {
     label: 'Open Library',
     url: 'https://openlibrary.org',
-    search: async (q) => parseOpenLibrary(await getJSON(
-      `https://openlibrary.org/search.json?q=${enc(q)}&lang=fr&limit=10&fields=${
-        'key,title,author_name,first_publish_year,subject,cover_i,editions,editions.title,editions.language,editions.cover_i'}`)),
+    // Un ISBN tapé dans le titre (ou scanné) cherche l'édition exacte.
+    search: async (q) => {
+      const isbn = normalizeIsbn(q);
+      const json = await getJSON(`https://openlibrary.org/search.json?q=${enc(isbn ? `isbn:${isbn}` : q)}&lang=fr&limit=10&fields=${
+        'key,title,author_name,first_publish_year,subject,cover_i,editions,editions.title,editions.language,editions.cover_i'}`);
+      return parseOpenLibrary(json, { exactEdition: Boolean(isbn) });
+    },
   },
   'tmdb-movie': {
     label: 'TMDB',
@@ -185,9 +231,12 @@ export const SOURCES = {
     label: 'MusicBrainz',
     url: 'https://musicbrainz.org',
     search: async (q) => parseMbSearch(await mbJSON(`${MB}/release-group/?query=${enc(q)}&fmt=json&limit=10`)),
+    byBarcode: async (code) => parseMbBarcode(await mbJSON(`${MB}/release/?query=barcode:${enc(code)}&fmt=json&limit=10`), code),
     details: async (r) => parseMbDetails(
       await mbJSON(`${MB}/release-group/${enc(r.ref)}?inc=genres&fmt=json`),
-      await mbJSON(`${MB}/release?release-group=${enc(r.ref)}&inc=recordings&fmt=json&limit=1`)),
+      await mbJSON(r.release
+        ? `${MB}/release/${enc(r.release)}?inc=recordings&fmt=json`
+        : `${MB}/release?release-group=${enc(r.ref)}&inc=recordings&fmt=json&limit=1`)),
   },
 };
 

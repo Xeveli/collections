@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseMbDetails, parseMbSearch, parseOpenLibrary, parseRawgDetails, parseRawgSearch, parseTmdbDetails, parseTmdbSearch,
+  normalizeIsbn, parseMbBarcode, parseMbDetails, parseMbSearch, parseOpenLibrary, parseRawgDetails, parseRawgSearch, parseTmdbDetails, parseTmdbSearch,
   pickSubjects,
 } from '../sources.js';
 
@@ -51,6 +51,33 @@ test('MusicBrainz : recherche, genres triés, tracklist', () => {
   assert.deepEqual(d.genres, ['electronic', 'disco']);
   assert.deepEqual(d.tracks, [{ title: 'Give Life Back to Music', length: '4:34' }, { title: 'Sans durée', length: undefined }]);
   assert.deepEqual(parseMbDetails({}, {}), { genres: [], tracks: [] });
+});
+
+test('ISBN : ISBN-13 et ISBN-10 valides, clés de contrôle vérifiées', () => {
+  assert.equal(normalizeIsbn('978-2-266-32048-1'), '9782266320481');
+  assert.equal(normalizeIsbn('2266320483'), '9782266320481'); // ISBN-10 du même livre
+  assert.equal(normalizeIsbn('0-8044-2957-X'), '9780804429573');
+  assert.equal(normalizeIsbn('9782266320482'), null); // mauvaise clé
+  assert.equal(normalizeIsbn('0888837168625'), null); // code-barres de disque
+  assert.equal(normalizeIsbn('Dune'), null);
+});
+
+// D'après une vraie réponse Open Library à q=isbn:9782266320481 (sans langue sur l'édition).
+test('Open Library par ISBN : édition exacte, même sans langue indiquée', () => {
+  const [r] = parseOpenLibrary({ docs: [{ key: '/works/OL893414W', title: 'Dune', author_name: ['Frank Herbert'], first_publish_year: 1965, cover_i: 11481354,
+    editions: { docs: [{ title: 'Dune - tome 1', cover_i: 13823878 }] } }] }, { exactEdition: true });
+  assert.deepEqual([r.title, r.cover], ['Dune - tome 1', 'https://covers.openlibrary.org/b/id/13823878-M.jpg']);
+});
+
+// D'après une vraie réponse MusicBrainz à barcode:0888837168625 (19/11/2026).
+test('MusicBrainz par code-barres : correspondance exacte, zéros de tête ignorés', () => {
+  const rel = (id, barcode) => ({ id, barcode, title: 'Random Access Memories', date: '2013-05-20',
+    'artist-credit': [{ name: 'Daft Punk' }], 'release-group': { id: 'aa997ea0', 'primary-type': 'Album' } });
+  const res = parseMbBarcode({ releases: [rel('a', '888837168625'), rel('b', '196588010323'), rel('c', '0888837168625')] }, '0888837168625');
+  assert.deepEqual(res.map((r) => r.release), ['a', 'c']);
+  assert.deepEqual([res[0].ref, res[0].year, res[0].creators, res[0].kind], ['aa997ea0', 2013, ['Daft Punk'], 'Album']);
+  assert.equal(parseMbBarcode({ releases: [rel('b', '196588010323')] }, '0888837168625').length, 1); // aucune exacte : on garde tout
+  assert.deepEqual(parseMbDetails({}, { media: [{ tracks: [{ title: 'Contact', length: 381000 }] }] }).tracks, [{ title: 'Contact', length: '6:21' }]);
 });
 
 // TMDB et RAWG : formes d'après la documentation, à confirmer avec une vraie clé.

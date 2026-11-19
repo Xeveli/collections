@@ -69,7 +69,10 @@
         <input name="title" required autocomplete="off">
       </label>
       <div class="search" id="search-wrap">
-        <button type="button" class="ghost" id="search-btn">Rechercher en ligne</button>
+        <div class="search-actions">
+          <button type="button" class="ghost" id="search-btn">Rechercher en ligne</button>
+          <button type="button" class="ghost" id="scan-btn">Scanner un code-barres</button>
+        </div>
         <p class="muted small" id="search-status" role="status"></p>
         <ul class="results" id="search-results"></ul>
       </div>
@@ -113,6 +116,13 @@
     <p class="muted small">Modifie un nom puis valide. Touche une étagère pour la renommer ou la supprimer.</p>
     <ul class="cats-list" id="cats-list"></ul>
     <button type="button" class="primary" id="add-category">+ Nouvelle catégorie</button>
+  </dialog>
+
+  <dialog id="scan-dialog" aria-labelledby="scan-title">
+    <h2 id="scan-title">Scanner un code-barres</h2>
+    <div class="scan-frame"><video id="scan-video" playsinline muted></video></div>
+    <p class="muted small" id="scan-status" role="status"></p>
+    <button type="button" class="ghost" id="scan-cancel">Annuler</button>
   </dialog>
 
   <dialog id="ask-dialog" aria-labelledby="ask-label">

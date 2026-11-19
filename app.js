@@ -5,7 +5,7 @@ import {
   addShelf, byOrder, categoryClash, checkCategoryName, cleanName, deleteCategory, moveCategory, removeShelf,
   renameCategory, renameShelf, shelfClash,
 } from './categories.js';
-import { SOURCES, SOURCE_BY_CATEGORY, SourceError } from './sources.js';
+import { SOURCES, SOURCE_BY_CATEGORY, SourceError, normalizeIsbn } from './sources.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...children) => {
@@ -345,7 +345,10 @@ function resetSearch() {
   searchSeq += 1;
   $('search-results').replaceChildren();
   $('search-status').textContent = '';
-  $('search-wrap').hidden = !sourceFor(f.categoryId.value);
+  const src = sourceFor(f.categoryId.value);
+  $('search-wrap').hidden = !src;
+  // Le scan ne sert que là où un code-barres identifie l'objet : livres (ISBN) et disques.
+  $('scan-btn').hidden = src !== SOURCES.openlibrary && src !== SOURCES.musicbrainz;
 }
 
 function sourceCredit(src) {
@@ -363,13 +366,22 @@ async function runSearch() {
     $('search-status').textContent = `Ajoute ta clé ${src.label} dans Réglages pour chercher ici.`;
     return;
   }
+  await searchWith(src, key, () => src.search(q, key), { emptyMsg: 'Aucun résultat. Essaie un autre titre.' });
+}
+
+// Lance une recherche et affiche ses résultats. autoPick : un seul objet trouvé (même œuvre) → choisi d'office.
+async function searchWith(src, key, fetchResults, { emptyMsg, autoPick = false, pending = 'Recherche…' }) {
   const seq = ++searchSeq;
-  $('search-status').textContent = 'Recherche…';
+  $('search-status').textContent = pending;
   $('search-results').replaceChildren();
   try {
-    const results = await src.search(q, key);
+    const results = await fetchResults();
     if (seq !== searchSeq) return; // une recherche plus récente a été lancée
-    $('search-status').textContent = results.length ? 'Touche le bon résultat :' : 'Aucun résultat. Essaie un autre titre.';
+    if (autoPick && results.length > 0 && results.every((r) => r.ref === results[0].ref)) {
+      await pickResult(src, results[0], key);
+      return;
+    }
+    $('search-status').textContent = results.length ? 'Touche le bon résultat :' : emptyMsg;
     $('search-results').replaceChildren(...results.map((r) => {
       const meta = [r.creators.join(', '), r.year, r.kind].filter(Boolean).join(' · ');
       const b = el('button', { type: 'button', className: 'result' },
@@ -417,6 +429,91 @@ async function pickResult(src, r, key) {
 }
 
 $('search-btn').addEventListener('click', runSearch);
+
+/* Scan de code-barres */
+
+// Safari iOS n'a pas BarcodeDetector : ponyfill (zxing-wasm, ≈ 1 Mo) chargé au premier scan, version épinglée.
+const BARCODE_LIB = 'https://cdn.jsdelivr.net/npm/barcode-detector@3.2.3/pure/+esm';
+const SCAN_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
+let stopScan = null;
+
+// Ouvre la caméra arrière et renvoie le premier code lu, ou null si l'utilisateur annule.
+async function scanBarcode() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('Caméra indisponible ici : le scan demande une adresse https (ou localhost sur PC).');
+  }
+  const d = $('scan-dialog');
+  const video = $('scan-video');
+  $('scan-status').textContent = 'Préparation du lecteur…';
+  d.showModal();
+  let stream;
+  let timer;
+  let done;
+  const result = new Promise((resolve) => { done = resolve; });
+  stopScan = (code) => {
+    clearTimeout(timer);
+    stream?.getTracks().forEach((t) => t.stop());
+    video.srcObject = null;
+    stopScan = null;
+    if (d.open) d.close();
+    done(code);
+  };
+  try {
+    const { BarcodeDetector } = await import(BARCODE_LIB);
+    const detector = new BarcodeDetector({ formats: SCAN_FORMATS });
+    if (!stopScan) return result; // annulé pendant le chargement : ne pas allumer la caméra
+    stream =await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    if (!stopScan) { stream.getTracks().forEach((t) => t.stop()); return result; } // annulé pendant le chargement
+    video.srcObject = stream;
+    await video.play();
+    $('scan-status').textContent = 'Place le code-barres dans le cadre, bien éclairé.';
+    const tick = async () => {
+      if (!stopScan) return;
+      try {
+        const [hit] = await detector.detect(video);
+        if (hit?.rawValue) { stopScan(hit.rawValue); return; }
+      } catch { /* image pas encore prête : on réessaie */ }
+      timer = setTimeout(tick, 200);
+    };
+    tick();
+  } catch (err) {
+    if (!stopScan) return result; // déjà arrêté par « Annuler » : l'erreur vient de l'interruption, on l'ignore
+    stopScan(null);
+    throw err.name === 'NotAllowedError'
+      ? new Error("Accès à la caméra refusé. Autorise-le dans les réglages du navigateur pour scanner.")
+      : err.name === 'NotFoundError' ? new Error('Aucune caméra trouvée sur cet appareil.') : err;
+  }
+  return result;
+}
+$('scan-cancel').addEventListener('click', () => stopScan?.(null));
+$('scan-dialog').addEventListener('cancel', (e) => { e.preventDefault(); stopScan?.(null); });
+
+// ISBN → livre (Open Library, édition exacte) ; autre code → disque (MusicBrainz).
+// La catégorie du formulaire suit le type de code lu, si cette catégorie existe encore.
+async function lookupCode(code) {
+  const isbn = normalizeIsbn(code);
+  const target = isbn ? 'livres' : 'musique';
+  if (f.categoryId.value !== target && catById(target)) {
+    f.categoryId.value = target;
+    syncFormVisibility();
+  }
+  resetSearch();
+  const src = isbn ? SOURCES.openlibrary : SOURCES.musicbrainz;
+  await searchWith(src, '', () => (isbn ? src.search(isbn) : src.byBarcode(code)), {
+    autoPick: true,
+    pending: `Code ${code} : recherche…`,
+    emptyMsg: `Aucun résultat pour le code ${code}. Tape le titre puis « Rechercher en ligne ».`,
+  });
+}
+
+$('scan-btn').addEventListener('click', async () => {
+  try {
+    const code = await scanBarcode();
+    if (code) await lookupCode(code);
+  } catch (err) {
+    $('search-status').textContent = err instanceof SourceError ? err.message : `Scan impossible : ${err.message}`;
+  }
+});
 $('remove-cover').addEventListener('click', () => { extras.cover = undefined; renderExtras(); });
 
 // Image choisie sur l'appareil (photo, capture, fichier) : réduite à 400 px de côté et stockée dans la
