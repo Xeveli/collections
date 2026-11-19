@@ -74,4 +74,5 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 ## Commandes
 
 - Servir en local : `python -m http.server 8000`, puis ouvrir http://localhost:8000. Le service worker et la caméra exigent `localhost` ou HTTPS. Pour tester sur iPhone, passer par GitHub Pages.
+- Mise en ligne : https://xeveli.github.io/collections/ (GitHub Pages, branche `main`, dossier racine). Chaque push sur `main` republie le site en une à deux minutes ; pousser seulement à la demande de l'utilisateur.
 - Tests de la logique pure (fusion d'import, parsing des réponses d'API) : `node --test`. Pour un seul fichier : `node --test tests/<fichier>.test.js`. Pas de `package.json` : Node détecte seul les modules ES.
