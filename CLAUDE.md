@@ -40,10 +40,15 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 ## Architecture des données
 
 - `db.js` : seul accès à IndexedDB (base `collections`, magasins `categories` et `items`, clé `id`). `putMany` écrit plusieurs magasins en une transaction.
-- `sync.js` : logique pure de l'export/import (validation du fichier, fusion). Elle n'utilise aucune API du navigateur, ce qui permet de la tester sous Node. Toute nouvelle logique de données qui peut s'en passer va là ou dans un module pur du même genre.
+- `sync.js` : logique pure de l'export/import (validation du fichier, fusion).
+- `items.js` : logique pure des fiches. `buildItem` valide le formulaire et construit la fiche, `filterItems` et `listGenres` servent aux filtres, `safeLink` valide les liens.
+- `categories.js` : logique pure de gestion des catégories et étagères. Chaque opération renvoie `{ categories, items }`, les fiches à réécrire. Un renommage d'étagère se propage aux objets ; supprimer une catégorie marque aussi ses objets comme supprimés. Dans `app.js`, `apply(op)` écrit le résultat et rafraîchit l'écran.
+- Ces modules purs n'utilisent aucune API du navigateur (sauf `crypto`), ce qui permet de les tester sous Node. Toute nouvelle logique de données qui peut s'en passer va dans un module pur du même genre, avec son test.
+- `app.js` : l'interface. Les textes saisis ou importés passent toujours par `textContent`, jamais par `innerHTML`. Un lien n'est affiché qu'après `safeLink`, qui n'accepte que le https.
+- Fiche d'objet : `id`, `categoryId`, `shelf?`, `title`, `creators[]`, `year?`, `genres[]`, `format` (`physique` | `numerique`), `link?` (lien de partage iCloud, numérique seulement), `createdAt`, `updatedAt`, `deleted?`. Catégorie : `id`, `name`, `order`, `shelves?[]`, `updatedAt`, `deleted?`.
 - Chaque fiche a un `id` texte et un `updatedAt` en millisecondes. **Toute modification met `updatedAt` à `Date.now()`**, sinon la fusion l'ignore.
 - **Supprimer = marquer la fiche `deleted: true`** (avec un nouveau `updatedAt`), ne jamais l'effacer de la base. Sinon, l'import depuis l'autre appareil la ferait réapparaître. L'affichage filtre les fiches supprimées.
-- Les catégories par défaut ont des `id` fixes (`livres`, `films`…) et `updatedAt: 0`, pour que PC et iPhone ne les dupliquent pas. Une catégorie créée par l'utilisateur prend un `crypto.randomUUID()`.
+- Les catégories par défaut ont des `id` fixes (`livres`, `films`…) et `updatedAt: 0`, pour que PC et iPhone ne les dupliquent pas. Une catégorie ou une fiche créée prend un `newId()` (`items.js`), et non `crypto.randomUUID()`, qui n'existe pas en http sur le réseau local.
 - Ajouter un magasin : l'ajouter à `STORES` dans `sync.js` et incrémenter `DB_VERSION` dans `db.js`.
 - Export : la feuille de partage sur écran tactile (« Enregistrer dans Fichiers »), sinon un téléchargement. Le nom suit le motif `collections-AAAA-MM-JJ.json`, que le `.gitignore` exclut.
 

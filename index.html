@@ -25,6 +25,74 @@
     </div>
     <nav class="cats" id="cats" aria-label="Catégories"></nav>
   </header>
+
+  <main id="main">
+    <div class="toolbar" id="toolbar">
+      <select id="filter-shelf" aria-label="Étagère"></select>
+      <select id="filter-genre" aria-label="Genre"></select>
+      <span class="muted small" id="count" aria-live="polite"></span>
+    </div>
+    <ul class="items" id="items"></ul>
+    <p class="muted no-match" id="no-match" hidden>Aucun objet ne correspond à ces filtres.</p>
+    <section class="empty" id="empty" hidden>
+      <div class="shelf" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <p>Ta collection est vide pour l'instant.</p>
+      <p class="hint">Touche « Ajouter » pour ranger ton premier objet.</p>
+    </section>
+  </main>
+
+  <button type="button" class="primary fab" id="add">+ Ajouter</button>
+
+  <div class="toast" id="toast" role="status" hidden>
+    <span id="toast-text"></span>
+    <button type="button" id="toast-undo">Annuler</button>
+  </div>
+
+  <dialog id="item-dialog" aria-labelledby="item-title">
+    <form method="dialog" class="dialog-close"><button aria-label="Fermer">✕</button></form>
+    <h2 id="item-title">Ajouter</h2>
+    <form id="item-form" novalidate>
+      <label>Catégorie
+        <select name="categoryId" id="f-category"></select>
+      </label>
+      <label id="f-shelf-wrap">Étagère
+        <select name="shelf" id="f-shelf"></select>
+      </label>
+      <label>Titre
+        <input name="title" required autocomplete="off">
+      </label>
+      <label>Auteur, réalisateur, artiste…
+        <input name="creators" autocomplete="off" placeholder="Séparés par des virgules">
+      </label>
+      <label>Année
+        <input name="year" inputmode="numeric" autocomplete="off">
+      </label>
+      <label>Genres
+        <input name="genres" id="f-genres" autocomplete="off" placeholder="Séparés par des virgules">
+      </label>
+      <div class="genre-suggest" id="genre-suggest" aria-label="Genres déjà utilisés"></div>
+      <fieldset class="segmented">
+        <legend>Support</legend>
+        <label><input type="radio" name="format" value="physique" checked> Physique</label>
+        <label><input type="radio" name="format" value="numerique"> Numérique</label>
+      </fieldset>
+      <label id="f-link-wrap">Lien iCloud du fichier (facultatif)
+        <input name="link" type="url" inputmode="url" autocomplete="off" placeholder="https://www.icloud.com/iclouddrive/…">
+      </label>
+      <p class="error" id="item-error" role="alert"></p>
+      <button type="submit" class="primary">Enregistrer</button>
+      <button type="button" class="danger" id="delete-item">Supprimer</button>
+    </form>
+  </dialog>
+
+  <dialog id="cats-dialog" aria-labelledby="cats-title">
+    <form method="dialog" class="dialog-close"><button aria-label="Fermer">✕</button></form>
+    <h2 id="cats-title">Catégories</h2>
+    <p class="muted small">Modifie un nom puis valide. Touche une étagère pour la renommer ou la supprimer.</p>
+    <ul class="cats-list" id="cats-list"></ul>
+    <button type="button" class="primary" id="add-category">+ Nouvelle catégorie</button>
+  </dialog>
+
   <dialog id="backup" aria-labelledby="backup-title">
     <form method="dialog" class="dialog-close"><button aria-label="Fermer">✕</button></form>
     <h2 id="backup-title">Sauvegarde</h2>
@@ -37,12 +105,5 @@
     <p class="muted small" id="last-export"></p>
     <p class="small" id="backup-status" role="status"></p>
   </dialog>
-  <main id="main">
-    <section class="empty">
-      <div class="shelf" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-      <p>Ta collection est vide pour l'instant.</p>
-      <p class="hint">L'ajout d'objets arrive à l'étape suivante.</p>
-    </section>
-  </main>
 </body>
 </html>

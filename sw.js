@@ -1,5 +1,5 @@
 // Incrémenter VERSION à chaque modification d'un fichier de SHELL : c'est ce qui force la mise à jour chez l'utilisateur.
-const VERSION = 'v3';
+const VERSION = 'v6';
 const CACHE = `collections-${VERSION}`;
 const SHELL = [
   './',
@@ -8,6 +8,8 @@ const SHELL = [
   'app.js',
   'db.js',
   'sync.js',
+  'items.js',
+  'categories.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
