@@ -32,7 +32,7 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 - **Déplacement groupé** : déplacer d'un coup les objets d'une étagère, ou une sélection, vers une autre catégorie ou étagère. C'est utile quand une étagère devient une catégorie à part (« Vinyle » de Musique → catégorie « Vinyle »). Aujourd'hui, il faut modifier chaque fiche une par une.
 - **Clés TMDB et RAWG** : reportées par l'utilisateur le 19/11/2026. Il les créera lui-même (comptes gratuits, usage personnel) et les saisira dans Réglages sur chaque appareil. Ensuite :
   - tester pour de vrai les recherches de films, séries et jeux : les formes de réponse viennent de la documentation ;
-  - ajouter le logo officiel TMDB dans « Sources et crédits », comme l'exigent leurs conditions, avant toute mise en ligne publique ;
+  - ajouter le logo officiel TMDB dans « Sources et crédits », comme l'exigent leurs conditions, dès que la clé est saisie (décision du 19/11/2026 : l'appli est publiée sans, car elle n'appelle pas TMDB sans clé) ;
   - RAWG gratuit : 20 000 requêtes par mois, lien actif vers RAWG obligatoire (déjà en place).
 - Rayons en 3D avec Three.js.
 
@@ -42,6 +42,7 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 - La collection n'existe que dans le navigateur et dans les exports JSON. Ne jamais committer d'export.
 - MusicBrainz limite à environ 1 requête par seconde : espacer les appels.
 - Scan de code-barres : Safari iOS ne fournit pas l'API `BarcodeDetector`. On charge au premier scan le ponyfill `barcode-detector@3.2.3/pure` (MIT, basé sur zxing-wasm, environ 1 Mo) depuis jsDelivr, avec une version épinglée (`BARCODE_LIB` dans `app.js`). Il n'est pas mis en cache par le service worker, mais le scan a de toute façon besoin du réseau. La caméra exige HTTPS, ou `localhost` sur PC : en http sur le réseau local, l'iPhone affiche « Caméra indisponible ».
+- **Scan verrouillé** (décision de l'utilisateur, 19/11/2026 : pas d'accès caméra pour l'instant). Le bouton reste visible mais `disabled`, avec la mention « fonction à coder plus tard » (`index.html`). Le code est en place : retirer `disabled` pour le réactiver, seulement à la demande de l'utilisateur. La recherche par ISBN tapé dans le titre reste active.
 - Le scan ne sert qu'aux livres et à la musique. Un ISBN (`normalizeIsbn`, qui accepte aussi l'ISBN-10 tapé dans le titre) cherche l'édition exacte sur Open Library ; tout autre code cherche le disque sur MusicBrainz (`byBarcode`). Le formulaire passe dans la bonne catégorie, et un résultat unique est choisi d'office. TMDB et RAWG ne cherchent pas par EAN : films, séries et jeux s'ajoutent par titre.
 - Lien iCloud : une page web ne peut pas ouvrir un chemin local d'iCloud Drive. On stocke donc un **lien de partage iCloud** (`https://www.icloud.com/iclouddrive/…`).
 - L'IndexedDB d'une PWA installée sur iPhone est séparée de celle de Safari. Les données peuvent aussi être perdues (désinstallation, effacement des données du site) : l'export JSON est la seule sauvegarde.

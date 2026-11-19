@@ -134,7 +134,7 @@ main {
 .cat-line { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; }
 .cat-line input { min-width: 0; }
 .icon { width: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 18px; }
-.icon:disabled { opacity: 0.35; cursor: default; }
+.icon:disabled, .ghost:disabled { opacity: 0.45; cursor: default; }
 .cat-meta { display: flex; align-items: center; justify-content: space-between; }
 .cat-meta .danger { padding: 4px 0; font-size: 14px; }
 .shelf-chips { display: flex; flex-wrap: wrap; gap: 6px; }

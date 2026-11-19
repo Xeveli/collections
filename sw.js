@@ -1,5 +1,5 @@
 // Incrémenter VERSION à chaque modification d'un fichier de SHELL : c'est ce qui force la mise à jour chez l'utilisateur.
-const VERSION = 'v12';
+const VERSION = 'v13';
 const CACHE = `collections-${VERSION}`;
 const SHELL = [
   './',

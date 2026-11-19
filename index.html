@@ -71,7 +71,8 @@
       <div class="search" id="search-wrap">
         <div class="search-actions">
           <button type="button" class="ghost" id="search-btn">Rechercher en ligne</button>
-          <button type="button" class="ghost" id="scan-btn">Scanner un code-barres</button>
+          <!-- Scan verrouillé à la demande de l'utilisateur (pas d'accès caméra pour l'instant) : retirer disabled pour le réactiver. -->
+          <button type="button" class="ghost" id="scan-btn" disabled title="Fonction à coder plus tard">Scanner un code-barres · fonction à coder plus tard</button>
         </div>
         <p class="muted small" id="search-status" role="status"></p>
         <ul class="results" id="search-results"></ul>
