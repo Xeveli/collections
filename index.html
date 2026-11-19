@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Collections</title>
+  <meta name="description" content="Tracker personnel de collections : livres, films, séries, jeux vidéo, musique.">
+  <meta name="theme-color" content="#f6f1e7" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1c1814" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Collections">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <h1>Collections</h1>
+    <nav class="cats" id="cats" aria-label="Catégories"></nav>
+  </header>
+  <main id="main">
+    <section class="empty">
+      <div class="shelf" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <p>Ta collection est vide pour l'instant.</p>
+      <p class="hint">L'ajout d'objets arrive à l'étape suivante.</p>
+    </section>
+  </main>
+</body>
+</html>

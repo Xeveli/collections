@@ -37,6 +37,10 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 - L'IndexedDB d'une PWA installée sur iPhone est séparée de celle de Safari. Les données peuvent aussi être perdues (désinstallation, effacement des données du site) : l'export JSON est la seule sauvegarde.
 - Import JSON : il fusionne par `id` d'objet, et la date `updatedAt` la plus récente l'emporte. Il ne doit jamais écraser toute la base sans confirmation.
 
+## Service worker
+
+`sw.js` sert d'abord les fichiers du cache (liste `SHELL`). **Toute modification d'un fichier de l'appli impose d'incrémenter `VERSION` dans `sw.js`**, sinon les appareils déjà installés gardent l'ancienne version. Un nouveau fichier de l'appli s'ajoute aussi à `SHELL`. Les requêtes vers d'autres domaines (API) ne passent pas par le cache.
+
 ## Commandes
 
 - Servir en local : `python -m http.server 8000`, puis ouvrir http://localhost:8000. Le service worker et la caméra exigent `localhost` ou HTTPS. Pour tester sur iPhone, passer par GitHub Pages.
