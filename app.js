@@ -1,10 +1,11 @@
 import { getAll, putMany, seedDefaults } from './db.js';
 import { buildExport, parseImport, planMerge, STORES } from './sync.js';
-import { FORMATS, buildItem, filterItems, listGenres, newId, parseList, safeLink } from './items.js';
+import { FORMATS, buildItem, filterItems, listGenres, newId, parseList, safeCover, safeLink } from './items.js';
 import {
   addShelf, byOrder, categoryClash, checkCategoryName, cleanName, deleteCategory, moveCategory, removeShelf,
   renameCategory, renameShelf, shelfClash,
 } from './categories.js';
+import { SOURCES, SOURCE_BY_CATEGORY, SourceError } from './sources.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, props = {}, ...children) => {
@@ -236,12 +237,22 @@ function spineClass(id) {
   return `cover spine-${(h % SPINES) + 1}`;
 }
 
+// Couverture en ligne (https seulement) ; hors ligne ou introuvable, vignette colorée à l'initiale.
+function coverEl(item) {
+  const placeholder = el('span', { className: spineClass(item.id), textContent: item.title.charAt(0).toUpperCase(), ariaHidden: 'true' });
+  const url = safeCover(item.cover);
+  if (!url) return placeholder;
+  const img = el('img', { className: 'cover', src: url, alt: '', loading: 'lazy', referrerPolicy: 'no-referrer' });
+  img.addEventListener('error', () => img.replaceWith(placeholder), { once: true });
+  return img;
+}
+
 function itemRow(item) {
   const cat = catById(item.categoryId);
   const meta = [item.creators?.join(', '), item.year, state.categoryId === 'tout' ? cat?.name : null, item.shelf]
     .filter(Boolean).join(' · ');
   const open = el('button', { type: 'button', className: 'item' },
-    el('span', { className: spineClass(item.id), textContent: item.title.charAt(0).toUpperCase(), ariaHidden: 'true' }),
+    coverEl(item),
     el('span', { className: 'info' },
       el('span', { className: 'title', textContent: item.title }),
       meta ? el('span', { className: 'meta', textContent: meta }) : '',
@@ -284,11 +295,17 @@ function syncFormVisibility() {
   $('f-link-wrap').hidden = f.format.value !== 'numerique';
 }
 
+// Données venues d'une recherche en ligne, gardées jusqu'à l'enregistrement.
+let extras = {};
+let sourceGenres = [];
+
 function renderGenreSuggest() {
-  const chosen = parseList(f.genres.value).map((g) => g.toLocaleLowerCase('fr'));
-  const genres = listGenres(state.items.filter((i) => !i.deleted));
-  $('genre-suggest').replaceChildren(...genres.map((g) => {
-    const b = el('button', { type: 'button', textContent: g });
+  const fold = (g) => g.toLocaleLowerCase('fr');
+  const chosen = parseList(f.genres.value).map(fold);
+  const known = listGenres(state.items.filter((i) => !i.deleted));
+  const fresh = sourceGenres.filter((g) => !known.some((k) => fold(k) === fold(g)));
+  $('genre-suggest').replaceChildren(...[...fresh, ...known].map((g) => {
+    const b = el('button', { type: 'button', textContent: g, className: fresh.includes(g) ? 'from-source' : '' });
     b.setAttribute('aria-pressed', String(chosen.includes(g.toLocaleLowerCase('fr'))));
     b.addEventListener('click', () => {
       const list = parseList(f.genres.value);
@@ -301,9 +318,147 @@ function renderGenreSuggest() {
   }));
 }
 
+/* Recherche en ligne */
+
+const KEY_PREFIX = 'collections:key-';
+function getKey(name) {
+  try { return localStorage.getItem(KEY_PREFIX + name) ?? ''; } catch { return ''; }
+}
+
+const sourceFor = (categoryId) => SOURCES[SOURCE_BY_CATEGORY[categoryId]];
+let searchSeq = 0;
+
+function renderExtras() {
+  const cover = safeCover(extras.cover);
+  $('f-cover').hidden = !cover;
+  $('remove-cover').hidden = !cover;
+  if (cover) $('f-cover').src = cover; else $('f-cover').removeAttribute('src');
+  $('cover-pick-text').textContent = cover ? "Changer l'image…" : 'Ajouter une image de couverture…';
+  const tracks = extras.tracks ?? [];
+  $('f-tracks').hidden = tracks.length === 0;
+  $('f-tracks').querySelector('summary').textContent = `Tracklist (${plural(tracks.length, 'titre')})`;
+  $('f-tracks').querySelector('ol').replaceChildren(
+    ...tracks.map((t) => el('li', { textContent: t.length ? `${t.title} — ${t.length}` : t.title })));
+}
+
+function resetSearch() {
+  searchSeq += 1;
+  $('search-results').replaceChildren();
+  $('search-status').textContent = '';
+  $('search-wrap').hidden = !sourceFor(f.categoryId.value);
+}
+
+function sourceCredit(src) {
+  return el('li', { className: 'muted small source-credit' }, 'Source : ',
+    el('a', { href: src.url, target: '_blank', rel: 'noopener', textContent: src.label }));
+}
+
+async function runSearch() {
+  const src = sourceFor(f.categoryId.value);
+  const q = f.title.value.trim();
+  if (!src) return;
+  if (!q) { $('search-status').textContent = "Tape d'abord un titre."; return; }
+  const key = src.keyName ? getKey(src.keyName) : '';
+  if (src.keyName && !key) {
+    $('search-status').textContent = `Ajoute ta clé ${src.label} dans Réglages pour chercher ici.`;
+    return;
+  }
+  const seq = ++searchSeq;
+  $('search-status').textContent = 'Recherche…';
+  $('search-results').replaceChildren();
+  try {
+    const results = await src.search(q, key);
+    if (seq !== searchSeq) return; // une recherche plus récente a été lancée
+    $('search-status').textContent = results.length ? 'Touche le bon résultat :' : 'Aucun résultat. Essaie un autre titre.';
+    $('search-results').replaceChildren(...results.map((r) => {
+      const meta = [r.creators.join(', '), r.year, r.kind].filter(Boolean).join(' · ');
+      const b = el('button', { type: 'button', className: 'result' },
+        coverEl({ id: r.ref, title: r.title, cover: r.cover }),
+        el('span', { className: 'info' },
+          el('span', { className: 'title', textContent: r.title }),
+          meta ? el('span', { className: 'meta', textContent: meta }) : ''));
+      b.addEventListener('click', () => pickResult(src, r, key));
+      return el('li', {}, b);
+    }), sourceCredit(src));
+  } catch (err) {
+    if (seq === searchSeq) $('search-status').textContent = err instanceof SourceError ? err.message : `Erreur : ${err.message}`;
+  }
+}
+
+// Remplit le formulaire : à l'ajout, le titre prend celui de la source ; sinon seuls les champs vides
+// sont complétés. Les genres de la source sont proposés, pas imposés.
+async function pickResult(src, r, key) {
+  const seq = ++searchSeq;
+  $('search-status').textContent = 'Récupération des détails…';
+  let details = {};
+  try {
+    if (src.details) details = await src.details(r, key);
+  } catch (err) {
+    if (seq !== searchSeq) return;
+    $('search-status').textContent = `Détails indisponibles (${err.message}) : infos de base remplies.`;
+  }
+  if (seq !== searchSeq) return;
+  const creators = details.creators?.length ? details.creators : r.creators;
+  if (!editing || !f.title.value.trim()) f.title.value = r.title;
+  if (!f.creators.value.trim() && creators.length) f.creators.value = creators.join(', ');
+  if (!f.year.value.trim() && r.year) f.year.value = r.year;
+  if (!extras.cover && r.cover) extras.cover = r.cover;
+  if (!extras.tracks?.length && details.tracks?.length) extras.tracks = details.tracks;
+  extras.source = { id: r.source, ref: r.ref };
+  sourceGenres = parseList([...(details.genres ?? []), ...r.genres].join(','));
+  $('search-results').replaceChildren(sourceCredit(src));
+  if (!/indisponibles/.test($('search-status').textContent)) {
+    $('search-status').textContent = sourceGenres.length
+      ? `Infos remplies depuis ${src.label}. Touche les genres proposés (en pointillés) pour les ajouter.`
+      : `Infos remplies depuis ${src.label}.`;
+  }
+  renderExtras();
+  renderGenreSuggest();
+}
+
+$('search-btn').addEventListener('click', runSearch);
+$('remove-cover').addEventListener('click', () => { extras.cover = undefined; renderExtras(); });
+
+// Image choisie sur l'appareil (photo, capture, fichier) : réduite à 400 px de côté et stockée dans la
+// fiche en JPEG (≈ 30 Ko), donc incluse dans l'export JSON. Fond blanc pour les PNG transparents.
+async function imageToDataUrl(file, max = 400) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = el('canvas', { width: Math.round(img.naturalWidth * scale), height: Math.round(img.naturalHeight * scale) });
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.82);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+$('cover-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = ''; // permet de rechoisir le même fichier
+  if (!file) return;
+  try {
+    extras.cover = await imageToDataUrl(file);
+    $('item-error').textContent = '';
+    renderExtras();
+  } catch {
+    $('item-error').textContent = 'Impossible de lire cette image. Essaie une photo ou un fichier JPEG ou PNG.';
+  }
+});
+f.categoryId.addEventListener('change', resetSearch);
+
 function openForm(item = null) {
   editing = item;
   form.reset();
+  extras = { cover: item?.cover, tracks: item?.tracks, source: item?.source };
+  sourceGenres = [];
+  renderExtras();
   $('item-error').textContent = '';
   $('item-title').textContent = item ? 'Modifier' : 'Ajouter';
   $('delete-item').hidden = !item;
@@ -318,6 +473,7 @@ function openForm(item = null) {
   f.format.value = item?.format ?? 'physique';
   f.link.value = item?.link ?? '';
   syncFormVisibility();
+  resetSearch();
   renderGenreSuggest();
   dialog.showModal();
 }
@@ -338,7 +494,8 @@ form.addEventListener('submit', async (e) => {
   try {
     const fields = Object.fromEntries(new FormData(form));
     const knownGenres = listGenres(state.items.filter((i) => !i.deleted && i.id !== editing?.id));
-    await saveItem(buildItem({ link: '', shelf: '', ...fields }, editing ?? undefined, { knownGenres }));
+    const record = buildItem({ link: '', shelf: '', ...fields }, editing ?? undefined, { knownGenres });
+    await saveItem({ ...record, cover: extras.cover, tracks: extras.tracks, source: extras.source });
   } catch (err) {
     $('item-error').textContent = err.message;
   }
@@ -430,8 +587,15 @@ function report(action) {
 $('open-backup').addEventListener('click', () => {
   status.textContent = '';
   showLastExport();
+  for (const name of ['tmdb', 'rawg']) $(`key-${name}`).value = getKey(name);
   backup.showModal();
 });
+// Clés propres à l'appareil, hors export : localStorage suffit.
+for (const name of ['tmdb', 'rawg']) {
+  $(`key-${name}`).addEventListener('change', (e) => {
+    try { localStorage.setItem(KEY_PREFIX + name, e.target.value.trim()); } catch { alert("Impossible d'enregistrer la clé sur cet appareil."); }
+  });
+}
 $('export').addEventListener('click', report(exportData));
 $('import').addEventListener('change', report(async (e) => {
   const file = e.target.files[0];

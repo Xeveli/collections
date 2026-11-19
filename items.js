@@ -35,6 +35,12 @@ export function safeLink(url) {
   }
 }
 
+// Couverture : lien https, ou image choisie sur l'appareil et stockée en data URL (JPEG/PNG/WebP seulement).
+export function safeCover(url) {
+  if (typeof url === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(url)) return url;
+  return safeLink(url);
+}
+
 export function filterItems(items, { categoryId = 'tout', shelf = '', genre = '' } = {}) {
   return items
     .filter((i) => !i.deleted

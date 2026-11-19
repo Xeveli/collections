@@ -18,7 +18,7 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 
 - Catégories par défaut : livres (étagères romans, BD, mangas), films, séries, jeux vidéo, musique. Un bouton permet d'ajouter une catégorie.
 - Ajout par titre ou par ISBN/code-barres (scan caméra). Infos, couverture et genre sont récupérés automatiquement :
-  - Livres : Open Library, avec Google Books en secours.
+  - Livres : Open Library. Google Books est écarté : sans clé, son quota quotidien est à 0 (vérifié le 19/11/2026).
   - Films et séries : TMDB.
   - Jeux vidéo : RAWG.
   - Musique : MusicBrainz (tracklist, artistes) et Cover Art Archive pour la pochette.
@@ -30,11 +30,15 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 ## Plus tard (demandé, hors version 1)
 
 - **Déplacement groupé** : déplacer d'un coup les objets d'une étagère, ou une sélection, vers une autre catégorie ou étagère. C'est utile quand une étagère devient une catégorie à part (« Vinyle » de Musique → catégorie « Vinyle »). Aujourd'hui, il faut modifier chaque fiche une par une.
+- **Clés TMDB et RAWG** : reportées par l'utilisateur le 19/11/2026. Il les créera lui-même (comptes gratuits, usage personnel) et les saisira dans Réglages sur chaque appareil. Ensuite :
+  - tester pour de vrai les recherches de films, séries et jeux : les formes de réponse viennent de la documentation ;
+  - ajouter le logo officiel TMDB dans « Sources et crédits », comme l'exigent leurs conditions, avant toute mise en ligne publique ;
+  - RAWG gratuit : 20 000 requêtes par mois, lien actif vers RAWG obligatoire (déjà en place).
 - Rayons en 3D avec Three.js.
 
 ## Contraintes à respecter
 
-- **Dépôt public : aucune clé d'API ni donnée perso dans le code.** TMDB et RAWG demandent une clé : l'utilisateur la saisit dans les réglages de l'appli et elle reste dans IndexedDB. Open Library, Google Books (faible volume) et MusicBrainz fonctionnent sans clé.
+- **Dépôt public : aucune clé d'API ni donnée perso dans le code.** TMDB et RAWG demandent une clé : l'utilisateur la saisit dans Réglages, elle reste dans le `localStorage` de l'appareil (préfixe `collections:key-`) et n'est jamais exportée. Open Library, MusicBrainz et Cover Art Archive fonctionnent sans clé.
 - La collection n'existe que dans le navigateur et dans les exports JSON. Ne jamais committer d'export.
 - MusicBrainz limite à environ 1 requête par seconde : espacer les appels.
 - Scan de code-barres : Safari iOS ne fournit pas l'API `BarcodeDetector`, il faut une bibliothèque (ex. ZXing) chargée depuis un CDN avec une version épinglée. La caméra exige HTTPS, ou `localhost` sur PC.
@@ -51,7 +55,10 @@ Tracker personnel de collections (livres, films, séries, jeux vidéo, musique) 
 - `categories.js` : logique pure de gestion des catégories et étagères. Chaque opération renvoie `{ categories, items }`, les fiches à réécrire. Un renommage d'étagère se propage aux objets ; supprimer une catégorie marque aussi ses objets comme supprimés. Dans `app.js`, `apply(op)` écrit le résultat et rafraîchit l'écran.
 - Ces modules purs n'utilisent aucune API du navigateur (sauf `crypto`), ce qui permet de les tester sous Node. Toute nouvelle logique de données qui peut s'en passer va dans un module pur du même genre, avec son test.
 - `app.js` : l'interface. Les textes saisis ou importés passent toujours par `textContent`, jamais par `innerHTML`. Un lien n'est affiché qu'après `safeLink`, qui n'accepte que le https.
-- Fiche d'objet : `id`, `categoryId`, `shelf?`, `title`, `creators[]`, `year?`, `genres[]`, `format` (`physique` | `numerique`), `link?` (lien de partage iCloud, numérique seulement), `createdAt`, `updatedAt`, `deleted?`. Catégorie : `id`, `name`, `order`, `shelves?[]`, `updatedAt`, `deleted?`.
+- `sources.js` : recherche en ligne. Les fonctions `parse*` sont pures et testées ; `SOURCES[id].search(q, clé)` renvoie des résultats normalisés (`source`, `ref`, `title`, `creators`, `year`, `cover`, `genres`), et `details` complète (réalisateur, développeur, genres, tracklist). `SOURCE_BY_CATEGORY` associe une source à chaque catégorie par défaut ; une catégorie créée n'en a pas. Choisir un résultat remplit le titre (à l'ajout seulement) et les champs vides ; les genres de la source sont seulement proposés.
+- MusicBrainz : environ 1 requête par seconde, sinon réponse 503. `mbJSON` espace les appels et réessaie une fois. La recherche puis les détails coûtent 3 requêtes.
+- Obligations des sources : mention TMDB (texte dans Réglages ; le logo TMDB est exigé, mais pas encore ajouté) et lien actif vers RAWG partout où ses données s'affichent (pied de page et sous les résultats). Les formes de réponse TMDB et RAWG dans les tests viennent de la documentation, pas d'appels réels.
+- Fiche d'objet : `id`, `categoryId`, `shelf?`, `title`, `creators[]`, `year?`, `genres[]`, `format` (`physique` | `numerique`), `link?` (lien de partage iCloud, numérique seulement), `cover?` (URL https, ou image choisie sur l'appareil : data URL JPEG de 400 px max, environ 30 Ko, incluse dans l'export ; toujours afficher via `safeCover`), `tracks?[]` (`title`, `length`), `source?` (`id`, `ref`), `createdAt`, `updatedAt`, `deleted?`. Catégorie : `id`, `name`, `order`, `shelves?[]`, `updatedAt`, `deleted?`.
 - Chaque fiche a un `id` texte et un `updatedAt` en millisecondes. **Toute modification met `updatedAt` à `Date.now()`**, sinon la fusion l'ignore.
 - **Supprimer = marquer la fiche `deleted: true`** (avec un nouveau `updatedAt`), ne jamais l'effacer de la base. Sinon, l'import depuis l'autre appareil la ferait réapparaître. L'affichage filtre les fiches supprimées.
 - **Annulation** : toute suppression propose le bandeau « Annuler » pendant 15 s (`offerUndo` dans `app.js`). Un objet se supprime sans confirmation ; une catégorie ou une étagère garde sa confirmation et a aussi le bandeau. Pour une opération de `categories.js`, on passe un libellé à `apply(op, undoLabel)`, qui prend un `snapshot` des fiches avant écriture. Ailleurs, on appelle `offerUndo(libellé, { categories, items })` avec les versions d'avant. Annuler réécrit ces versions avec un `updatedAt` neuf, pour que la synchro retienne la restauration. Seule la dernière opération est annulable : un nouveau bandeau remplace le précédent.

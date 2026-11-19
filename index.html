@@ -21,7 +21,7 @@
   <header class="top">
     <div class="title-row">
       <h1>Collections</h1>
-      <button type="button" class="ghost" id="open-backup">Sauvegarde</button>
+      <button type="button" class="ghost" id="open-backup">Réglages</button>
     </div>
     <nav class="cats" id="cats" aria-label="Catégories"></nav>
   </header>
@@ -39,6 +39,13 @@
       <p>Ta collection est vide pour l'instant.</p>
       <p class="hint">Touche « Ajouter » pour ranger ton premier objet.</p>
     </section>
+    <footer class="credits muted small">
+      Données : <a href="https://openlibrary.org" target="_blank" rel="noopener">Open Library</a> ·
+      <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a> ·
+      <a href="https://rawg.io" target="_blank" rel="noopener">RAWG</a> ·
+      <a href="https://musicbrainz.org" target="_blank" rel="noopener">MusicBrainz</a> ·
+      <a href="https://coverartarchive.org" target="_blank" rel="noopener">Cover Art Archive</a>
+    </footer>
   </main>
 
   <button type="button" class="primary fab" id="add">+ Ajouter</button>
@@ -61,6 +68,21 @@
       <label>Titre
         <input name="title" required autocomplete="off">
       </label>
+      <div class="search" id="search-wrap">
+        <button type="button" class="ghost" id="search-btn">Rechercher en ligne</button>
+        <p class="muted small" id="search-status" role="status"></p>
+        <ul class="results" id="search-results"></ul>
+      </div>
+      <div class="picked" id="picked">
+        <img id="f-cover" alt="Couverture" hidden>
+        <div class="cover-actions">
+          <label class="cover-pick"><span id="cover-pick-text">Ajouter une image de couverture…</span>
+            <input type="file" id="cover-file" accept="image/*">
+          </label>
+          <button type="button" class="danger" id="remove-cover" hidden>Retirer la couverture</button>
+        </div>
+      </div>
+      <details class="tracks" id="f-tracks" hidden><summary></summary><ol></ol></details>
       <label>Auteur, réalisateur, artiste…
         <input name="creators" autocomplete="off" placeholder="Séparés par des virgules">
       </label>
@@ -107,7 +129,8 @@
 
   <dialog id="backup" aria-labelledby="backup-title">
     <form method="dialog" class="dialog-close"><button aria-label="Fermer">✕</button></form>
-    <h2 id="backup-title">Sauvegarde</h2>
+    <h2 id="backup-title">Réglages</h2>
+    <h3>Sauvegarde</h3>
     <p class="muted">Ta collection vit dans ce navigateur. Exporte-la sur iCloud Drive pour la sauvegarder et l'importer sur ton autre appareil.</p>
     <button type="button" class="primary" id="export">Exporter la collection</button>
     <label class="file-button">
@@ -116,6 +139,23 @@
     </label>
     <p class="muted small" id="last-export"></p>
     <p class="small" id="backup-status" role="status"></p>
+
+    <h3>Clés d'API</h3>
+    <p class="muted small">Nécessaires pour chercher les films, séries et jeux. Gratuites ; elles restent sur cet appareil et ne sont pas exportées.</p>
+    <label class="key-field">TMDB (films, séries)
+      <input id="key-tmdb" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="Clé API ou jeton d'accès">
+    </label>
+    <label class="key-field">RAWG (jeux vidéo)
+      <input id="key-rawg" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="Clé API">
+    </label>
+
+    <h3>Sources et crédits</h3>
+    <p class="muted small">Livres : <a href="https://openlibrary.org" target="_blank" rel="noopener">Open Library</a>.
+      Films et séries : <a href="https://www.themoviedb.org" target="_blank" rel="noopener">TMDB</a>.
+      Jeux vidéo : <a href="https://rawg.io" target="_blank" rel="noopener">RAWG</a>.
+      Musique : <a href="https://musicbrainz.org" target="_blank" rel="noopener">MusicBrainz</a> et
+      <a href="https://coverartarchive.org" target="_blank" rel="noopener">Cover Art Archive</a>.</p>
+    <p class="muted small">This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by TMDB.</p>
   </dialog>
 </body>
 </html>

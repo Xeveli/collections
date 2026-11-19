@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildItem, filterItems, listGenres, parseList, safeLink } from '../items.js';
+import { buildItem, filterItems, listGenres, parseList, safeCover, safeLink } from '../items.js';
 
 const fields = (over = {}) => ({
   categoryId: 'livres', shelf: 'Romans', title: 'Dune', creators: 'Frank Herbert', year: '1965',
@@ -17,6 +17,15 @@ test('safeLink ne garde que le https', () => {
   assert.equal(safeLink('javascript:alert(1)'), null);
   assert.equal(safeLink('http://exemple.fr'), null);
   assert.equal(safeLink('pas un lien'), null);
+});
+
+test('safeCover accepte le https et les images de l\'appareil, rien d\'autre', () => {
+  assert.equal(safeCover('https://covers.openlibrary.org/b/id/1-M.jpg'), 'https://covers.openlibrary.org/b/id/1-M.jpg');
+  assert.equal(safeCover('data:image/jpeg;base64,/9j/4AAQSkZJRg=='), 'data:image/jpeg;base64,/9j/4AAQSkZJRg==');
+  assert.equal(safeCover('data:image/svg+xml;base64,PHN2Zz4='), null);
+  assert.equal(safeCover('data:text/html;base64,PGgxPg=='), null);
+  assert.equal(safeCover('javascript:alert(1)'), null);
+  assert.equal(safeCover(undefined), null);
 });
 
 test('buildItem crée puis modifie une fiche', () => {
